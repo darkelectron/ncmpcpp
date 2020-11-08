@@ -3,8 +3,9 @@
 Project page - http://rybczak.net/ncmpcpp/
 
 # Merged branches/forks:
-* more options for progressbar: https://github.com/ncmpcpp/ncmpcpp/pull/392
-* ~~google lyrics fetcher and remove lyricswiki~~: https://github.com/ncmpcpp/ncmpcpp/pull/419
+- [x] more options for progressbar: https://github.com/ncmpcpp/ncmpcpp/pull/392
+- [ ] google lyrics fetcher and remove lyricswiki: https://github.com/ncmpcpp/ncmpcpp/pull/419
+
 ## ncmpcpp – featureful ncurses based MPD client inspired by ncmpc
 
 ### Main features:
