@@ -23,6 +23,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <numeric>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -38,9 +39,7 @@ std::istream &operator>>(std::istream &is, LyricsFetcher_ &fetcher)
 {
 	std::string s;
 	is >> s;
-	if (s == "lyricwiki")
-		fetcher = std::make_unique<LyricwikiFetcher>();
-	else if (s == "azlyrics")
+	if (s == "azlyrics")
 		fetcher = std::make_unique<AzLyricsFetcher>();
 	else if (s == "genius")
 		fetcher = std::make_unique<GeniusFetcher>();
@@ -146,66 +145,6 @@ void LyricsFetcher::postProcess(std::string &data) const
 	boost::trim(data);
 }
 
-/***********************************************************************/
-
-LyricsFetcher::Result LyricwikiFetcher::fetch(const std::string &artist,
-                                              const std::string &title)
-{
-	LyricsFetcher::Result result = LyricsFetcher::fetch(artist, title);
-	if (result.first == true)
-	{
-		result.first = false;
-		
-		std::string data;
-		CURLcode code = Curl::perform(data, result.second, "", true);
-		
-		if (code != CURLE_OK)
-		{
-			result.second = curl_easy_strerror(code);
-			return result;
-		}
-		
-		auto lyrics = getContent("<div class='lyricbox'>(.*?)</div>", data);
-		
-		if (lyrics.empty())
-		{
-			result.second = msgNotFound;
-			return result;
-		}
-		std::transform(lyrics.begin(), lyrics.end(), lyrics.begin(), unescapeHtmlUtf8);
-		bool license_restriction = std::any_of(lyrics.begin(), lyrics.end(), [](const std::string &s) {
-			return s.find("Unfortunately, we are not licensed to display the full lyrics for this song at the moment.") != std::string::npos;
-		});
-		if (license_restriction)
-		{
-			result.second = "Licence restriction";
-			return result;
-		}
-		
-		data.clear();
-		for (auto it = lyrics.begin(); it != lyrics.end(); ++it)
-		{
-			stripHtmlTags(*it);
-			boost::trim(*it);
-			if (!it->empty())
-			{
-				data += *it;
-				if (it != lyrics.end()-1)
-					data += "\n\n----------\n\n";
-			}
-		}
-		
-		result.second = data;
-		result.first = true;
-	}
-	return result;
-}
-
-bool LyricwikiFetcher::notLyrics(const std::string &data) const
-{
-	return data.find("action=edit") != std::string::npos;
-}
-
 /**********************************************************************/
 
 LyricsFetcher::Result GoogleLyricsFetcher::fetch(const std::string &artist,
@@ -247,11 +186,29 @@ LyricsFetcher::Result GoogleLyricsFetcher::fetch(const std::string &artist,
 		result.second = msgNotFound;
 		return result;
 	}
-	
+
 	data = unescapeHtmlUtf8(urls[0]);
-	
+
 	URL = data.c_str();
-	return LyricsFetcher::fetch("", "");
+
+	std::string data2;
+	CURLcode code2 = Curl::perform(data2, URL, google_url, true);
+
+	if (code2 != CURLE_OK) {
+		result.second = curl_easy_strerror(code2);
+		return result;
+	}
+
+	{
+		auto content = getContent(regex(), data2);
+		auto lyricsStr = std::accumulate(content.begin(), content.end(), std::string(""));
+		postProcess(lyricsStr);
+		result.first = true;
+		result.second = lyricsStr;
+	}
+
+	return result;
+
 }
 
 bool GoogleLyricsFetcher::isURLOk(const std::string &url)
